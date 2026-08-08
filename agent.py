@@ -27,8 +27,24 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-model = genai.GenerativeModel('gemini-1.5-flash')
 MEMORY_FILE = "agent_memory.json"
+
+def get_gemini_model():
+    """Dynamically select an available Gemini model that supports content generation."""
+    try:
+        available_models = genai.list_models()
+        for m in available_models:
+            if 'generateContent' in m.supported_generation_methods:
+                if 'flash' in m.name:
+                    return genai.GenerativeModel(m.name)
+        for m in available_models:
+            if 'generateContent' in m.supported_generation_methods:
+                return genai.GenerativeModel(m.name)
+    except Exception as e:
+        print(f"Error listing models: {e}")
+    return genai.GenerativeModel('gemini-1.5-flash')
+
+model = get_gemini_model()
 
 def load_memory():
     if os.path.exists(MEMORY_FILE):
@@ -84,7 +100,12 @@ def handle_chat(message):
         response = model.generate_content(full_prompt)
         bot.reply_to(message, response.text)
     except Exception as e:
-        bot.reply_to(message, f"දෝෂයක් සිදු විය: {str(e)}")
+        try:
+            fallback_model = get_gemini_model()
+            response = fallback_model.generate_content(full_prompt)
+            bot.reply_to(message, response.text)
+        except Exception as err:
+            bot.reply_to(message, f"දෝෂයක් සිදු විය: {str(err)}")
 
 if __name__ == "__main__":
     print("Agent is running on Cloud...")
