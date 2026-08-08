@@ -1,6 +1,7 @@
 import os
 import json
 import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 import google.generativeai as genai
@@ -110,4 +111,11 @@ def handle_chat(message):
 
 if __name__ == "__main__":
     print("Agent is running on Cloud...")
-    bot.infinity_polling()
+    # Clear any active webhooks or lingering polling instances
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+    except Exception as e:
+        print(f"Webhook cleanup note: {e}")
+
+    bot.infinity_polling(skip_pending_updates=True)
