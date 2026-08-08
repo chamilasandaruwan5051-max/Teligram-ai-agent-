@@ -29,22 +29,21 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 MEMORY_FILE = "agent_memory.json"
 
-def get_gemini_model():
-    """Dynamically select an available Gemini model that supports content generation."""
-    try:
-        available_models = genai.list_models()
-        for m in available_models:
-            if 'generateContent' in m.supported_generation_methods:
-                if 'flash' in m.name:
-                    return genai.GenerativeModel(m.name)
-        for m in available_models:
-            if 'generateContent' in m.supported_generation_methods:
-                return genai.GenerativeModel(m.name)
-    except Exception as e:
-        print(f"Error listing models: {e}")
-    return genai.GenerativeModel('gemini-1.5-flash')
+# Models to try in priority order
+CANDIDATE_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
 
-model = get_gemini_model()
+def generate_response(prompt):
+    """Try active Gemini models sequentially until one succeeds."""
+    last_error = None
+    for model_name in CANDIDATE_MODELS:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            last_error = e
+            continue
+    raise last_error
 
 def load_memory():
     if os.path.exists(MEMORY_FILE):
@@ -97,15 +96,10 @@ def handle_chat(message):
     full_prompt = f"{context_prompt}\nUser Question: {message.text}\nResponse:"
     
     try:
-        response = model.generate_content(full_prompt)
-        bot.reply_to(message, response.text)
+        reply_text = generate_response(full_prompt)
+        bot.reply_to(message, reply_text)
     except Exception as e:
-        try:
-            fallback_model = get_gemini_model()
-            response = fallback_model.generate_content(full_prompt)
-            bot.reply_to(message, response.text)
-        except Exception as err:
-            bot.reply_to(message, f"දෝෂයක් සිදු විය: {str(err)}")
+        bot.reply_to(message, f"දෝෂයක් සිදු විය: {str(e)}")
 
 if __name__ == "__main__":
     print("Agent is running on Cloud...")
