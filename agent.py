@@ -18,7 +18,6 @@ def run_health_server():
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.serve_forever()
 
-# Start dummy HTTP server in background
 threading.Thread(target=run_health_server, daemon=True).start()
 
 # --- BOT CONFIGURATION ---
@@ -30,28 +29,8 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 MEMORY_FILE = "agent_memory.json"
 
-# Active stable Gemini model names to try sequentially
-CANDIDATE_MODELS = [
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-pro'
-]
-
-def generate_response(prompt):
-    """Try stable Gemini model versions cleanly without extra model prefixes."""
-    last_error = None
-    for raw_name in CANDIDATE_MODELS:
-        clean_name = raw_name.replace('models/', '')
-        try:
-            model = genai.GenerativeModel(clean_name)
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            last_error = e
-            continue
-
-    raise Exception(f"No working Gemini model found. Last error: {last_error}")
+# Standard active model
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def load_memory():
     if os.path.exists(MEMORY_FILE):
@@ -104,14 +83,13 @@ def handle_chat(message):
     full_prompt = f"{context_prompt}\nUser Question: {message.text}\nResponse:"
     
     try:
-        reply_text = generate_response(full_prompt)
-        bot.reply_to(message, reply_text)
+        response = model.generate_content(full_prompt)
+        bot.reply_to(message, response.text)
     except Exception as e:
         bot.reply_to(message, f"දෝෂයක් සිදු විය: {str(e)}")
 
 if __name__ == "__main__":
     print("Agent is running on Cloud...")
-    # Clear any active webhooks or lingering polling instances
     try:
         bot.remove_webhook()
         time.sleep(1)
